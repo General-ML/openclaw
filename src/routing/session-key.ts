@@ -249,3 +249,97 @@ export function resolveThreadSessionKeys(params: {
     : params.baseSessionKey;
   return { sessionKey, parentSessionKey: params.parentSessionKey };
 }
+
+// ─── GML-73: Named Conversations ─────────────────────────────────────────────
+
+export const NAMED_CONV_NAMESPACE = "conv";
+
+/**
+ * Normalizes a user-supplied conversation name into a lowercase, URL-safe slug
+ * suitable for use in a session key.
+ *
+ * Rules:
+ *  - Trims whitespace
+ *  - Lowercases
+ *  - Replaces runs of non-alphanumeric (non-hyphen, non-underscore) chars with a single hyphen
+ *  - Strips leading/trailing hyphens
+ *  - Truncates to 64 characters
+ *  - Returns "default" if the result is empty
+ *
+ * Examples:
+ *   normalizeName("Trading Research")  → "trading-research"
+ *   normalizeName("code_review")       → "code_review"
+ *   normalizeName("  my-plan!  ")      → "my-plan"
+ *   normalizeName("")                  → "default"
+ */
+export function normalizeName(value: string | undefined | null): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) {
+    return "default";
+  }
+  const VALID_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
+  if (VALID_NAME_RE.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  // Best-effort: collapse invalid chars → hyphen, strip leading/trailing hyphens, truncate
+  const INVALID_NAME_CHARS_RE = /[^a-z0-9_-]+/g;
+  const result =
+    trimmed
+      .toLowerCase()
+      .replace(INVALID_NAME_CHARS_RE, "-")
+      .replace(/^-+/, "")
+      .replace(/-+$/, "")
+      .slice(0, 64) || "default";
+  return result;
+}
+
+/**
+ * Builds the session key for a named conversation.
+ *
+ * Format: `agent:<agentId>:conv:<name>`
+ *
+ * The `conv:` namespace segment distinguishes named conversations from:
+ *   - DMs:     `agent:main:main`
+ *   - Groups:  `agent:main:telegram:group:1234`
+ *   - Threads: `agent:main:main:thread:abcdef`
+ *   - Cron:    `agent:main:cron:...`
+ *   - Sub-agents: `agent:main:subagent:...`
+ *
+ * Examples:
+ *   buildAgentNamedSessionKey({ agentId: "main", name: "trading-research" })
+ *   → "agent:main:conv:trading-research"
+ *
+ *   buildAgentNamedSessionKey({ agentId: "main", name: "Code Review 2025" })
+ *   → "agent:main:conv:code-review-2025"
+ */
+export function buildAgentNamedSessionKey(params: { agentId: string; name: string }): string {
+  const agentId = normalizeAgentId(params.agentId);
+  const name = normalizeName(params.name);
+  return `agent:${agentId}:${NAMED_CONV_NAMESPACE}:${name}`;
+}
+
+/**
+ * Returns true if the given session key is a named conversation key
+ * (i.e., matches the `agent:<id>:conv:<name>` format).
+ */
+export function isNamedConversationSessionKey(sessionKey: string | undefined | null): boolean {
+  const raw = (sessionKey ?? "").trim().toLowerCase();
+  const parts = raw.split(":");
+  return parts.length === 4 && parts[0] === "agent" && parts[2] === NAMED_CONV_NAMESPACE;
+}
+
+/**
+ * Extracts the conversation name from a named conversation session key.
+ * Returns null if the key is not a named conversation key.
+ *
+ * Example:
+ *   extractConversationName("agent:main:conv:trading-research") → "trading-research"
+ *   extractConversationName("agent:main:main") → null
+ */
+export function extractConversationName(sessionKey: string | undefined | null): string | null {
+  if (!isNamedConversationSessionKey(sessionKey)) {
+    return null;
+  }
+  const parts = (sessionKey ?? "").trim().toLowerCase().split(":");
+  return parts[3] ?? null;
+}
