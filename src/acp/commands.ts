@@ -23,8 +23,20 @@ export function getAvailableCommands(): AvailableCommand[] {
     { name: "dock-slack", description: "Route replies to Slack." },
     { name: "activation", description: "Set group activation (mention|always)." },
     { name: "send", description: "Set send mode (on|off|inherit)." },
-    { name: "reset", description: "Reset the session (/new)." },
-    { name: "new", description: "Reset the session (/reset)." },
+    // GML-75: /reset remains a pure reset (no name arg); /new is the one that gains name support
+    { name: "reset", description: "Reset the current session (clears history)." },
+    // GML-75: /new now accepts an optional name to switch or create a named conversation
+    {
+      name: "new",
+      description: "Start a new session or switch to a named conversation (/new [name]).",
+      input: { hint: "name (optional)" },
+    },
+    // GML-76: /sessions — list, open, or delete named conversations
+    {
+      name: "sessions",
+      description: "Manage named conversations (list | open <name> | delete <name>).",
+      input: { hint: "list | open <name> | delete <name>" },
+    },
     {
       name: "think",
       description: "Set thinking level (off|minimal|low|medium|high|xhigh).",
