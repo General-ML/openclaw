@@ -159,3 +159,26 @@ export const HooksGmailSchema = z
   })
   .strict()
   .optional();
+
+export const OutputFilterRegexRuleSchema = z
+  .object({
+    pattern: z.string(),
+    replacement: z.string(),
+    global: z.boolean().optional(),
+    caseInsensitive: z.boolean().optional(),
+    description: z.string().optional(),
+  })
+  .strict();
+
+export const OutputFilterConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    regex: z.array(OutputFilterRegexRuleSchema).optional(),
+  })
+  .strict();
+
+export const OutputHooksConfigSchema = z
+  .object({
+    preStop: OutputFilterConfigSchema.optional(),
+  })
+  .strict();

@@ -150,4 +150,31 @@ export type HooksConfig = {
   gmail?: HooksGmailConfig;
   /** Internal agent event hooks */
   internal?: InternalHooksConfig;
+  /** Output hooks (pre-delivery filters/transforms) */
+  output?: OutputHooksConfig;
+};
+
+export type OutputFilterRegexRule = {
+  /** Regex pattern (JS regex string) */
+  pattern: string;
+  /** Replacement string (can use $1, $2 etc.) */
+  replacement: string;
+  /** Apply globally (default: true) */
+  global?: boolean;
+  /** Case-insensitive match (default: false) */
+  caseInsensitive?: boolean;
+  /** Optional description for logging */
+  description?: string;
+};
+
+export type OutputFilterConfig = {
+  /** Enable this filter (default: true) */
+  enabled?: boolean;
+  /** Regex rules applied in order */
+  regex?: OutputFilterRegexRule[];
+};
+
+export type OutputHooksConfig = {
+  /** Filter/transform response before delivery */
+  preStop?: OutputFilterConfig;
 };

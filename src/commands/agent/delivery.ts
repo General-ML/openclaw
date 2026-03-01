@@ -4,6 +4,7 @@ import { getChannelPlugin, normalizeChannelId } from "../../channels/plugins/ind
 import { createOutboundSendDeps, type CliDeps } from "../../cli/outbound-send-deps.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
+import { applyOutputFilter } from "../../hooks/output-filter.js";
 import {
   resolveAgentDeliveryPlan,
   resolveAgentOutboundTarget,
@@ -157,7 +158,39 @@ export async function deliverAgentCommandResult(params: {
     return { payloads: [], meta: result.meta };
   }
 
-  const deliveryPayloads = normalizeOutboundPayloads(payloads);
+  let deliveryPayloads = normalizeOutboundPayloads(payloads);
+
+  // Apply output.preStop filter before delivery
+  const preStopConfig = cfg.hooks?.output?.preStop;
+  if (preStopConfig && preStopConfig.enabled !== false) {
+    let totalApplied = 0;
+    deliveryPayloads = deliveryPayloads.map((payload) => {
+      if (!payload.text) {
+        return payload;
+      }
+      try {
+        const result = applyOutputFilter(
+          {
+            content: payload.text,
+            channelId: opts.channel ?? opts.messageChannel,
+            sessionKey: opts.sessionKey,
+          },
+          preStopConfig,
+        );
+        if (result.appliedRules > 0) {
+          totalApplied += result.appliedRules;
+          return { ...payload, text: result.content };
+        }
+      } catch (err) {
+        runtime.log(`[output-filter] Warning: filter threw unexpectedly: ${String(err)}`);
+      }
+      return payload;
+    });
+    if (totalApplied > 0) {
+      runtime.log(`[output-filter] ${totalApplied} rules applied`);
+    }
+  }
+
   const logPayload = (payload: NormalizedOutboundPayload) => {
     if (opts.json) {
       return;
